@@ -1,28 +1,74 @@
 ---
-title: ""
-author: ""
+title: "Homework 3"
+author: "Allison Louie"
 format:
   html:
     embed-resources: true
 ---
 
-## Quarto
-
-Quarto enables you to weave together content and executable code into a finished document. To learn more about Quarto see <https://quarto.org>.
-
-## Running Code
-
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
-
 ```{r}
-1 + 1
+library(httr)
+library(tm)
+library(tidyverse)
+library(dplyr)
+library(tidytext)
+pubmed <- read.csv("https://raw.githubusercontent.com/USCbiostats/data-science-data/master/03_pubmed/pubmed.csv")
 ```
 
-You can add options to executable code like this
+## 1. Tokenize the abstracts and count the number of each token. Do you see anything interesting? Does removing stop words change what tokens appear as the most frequent? What are the 5 most common tokens for each search term after removing stopwords?
 
 ```{r}
-#| echo: false
-2 * 2
+data_tokens <- pubmed %>%
+  unnest_tokens(word, abstract)
+token_counts <- data_tokens %>%
+  count(word, sort = TRUE)
+head(token_counts, 10)
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+Most of it has to do with filler words like the, of, and, in, to, a, with, and is. Need to remove these words to see if there are actual content.
+
+```{r}
+data_tokens_filtered <- data_tokens %>%
+  anti_join(stop_words)
+token_counts_filtered <- data_tokens_filtered %>%
+  count(word, sort = TRUE)
+most_common_tokens_without_stopwords <- 
+  head(token_counts_filtered, 5)
+most_common_tokens_without_stopwords
+```
+
+These would be the words that are most mentioned. However, 19 is being used as a word even after removing the stop words, but we can associate that with the covid 19.
+
+## 2. Tokenize the abstracts into bigrams. Find the 10 most common bigrams and visualize them with ggplot2.
+
+```{r}
+bigrams <- pubmed %>%
+  unnest_tokens(bigram, abstract, token = "ngrams", n = 2)
+bigram_counts <- bigrams %>%
+  count(bigram, sort = TRUE)
+most_common_bigrams <- head(bigram_counts, 10)
+most_common_bigrams
+ggplot(most_common_bigrams, aes(x = reorder(bigram, n), y = n)) +
+  geom_bar(stat = "identity", fill = "pink") +
+  labs(x = "Bigram", y = "Frequency")
+```
+
+## 3. Calculate the TF-IDF value for each word-search term combination (here you want the search term to be the "document"). What are the 5 tokens from each search term with the highest TF-IDF value? How are the results different from the answers you got in question 1?
+
+```{r}
+corpus <- Corpus(VectorSource(pubmed$abstract))
+dtm <- DocumentTermMatrix(corpus)
+tfidf <- weightTfIdf(dtm)
+tfidf_df <- as.data.frame(as.matrix(tfidf))
+tfidf_df$term <- pubmed$term
+top_tfidf_tokens <- tfidf_df %>%
+  group_by(term) %>%
+  summarise_all(~sum(.x, na.rm = TRUE)) %>%
+  pivot_longer(-term, names_to = "token", values_to = "tfidf_value") %>%
+  arrange(term, desc(tfidf_value)) %>%
+  group_by(term) %>%
+  top_n(5)
+top_tfidf_tokens
+```
+
+It is different from the search terms in question 1 that it includes more of the combination of the word-search term that are more common with the words.
