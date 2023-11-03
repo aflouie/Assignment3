@@ -7,10 +7,11 @@ format:
 ---
 
 ```{r}
-library(tm)
+library(data.table)
 library(dplyr)
-library(stringr)
 library(tidytext)
+library(stringr)
+library(tidyverse)
 library(ggplot2)
 pubmed <- read.csv("https://raw.githubusercontent.com/USCbiostats/data-science-data/master/03_pubmed/pubmed.csv")
 ```
@@ -19,36 +20,31 @@ pubmed <- read.csv("https://raw.githubusercontent.com/USCbiostats/data-science-d
 
 ```{r}
 data_tokens <- pubmed %>%
-  unnest_tokens(word, abstract)
-token_counts <- data_tokens %>%
-  count(word, sort = TRUE)
-most_common_tokens <-head(token_counts, 10)
-most_common_tokens
+  unnest_tokens(token, abstract)%>%
+  count(token, sort = TRUE)
+data_tokens
 ```
 
 Most of it has to do with filler words like the, of, and, in, to, a, with, and is. We need to remove these words to see if there are actual content to be observed.
 
 ```{r}
-data_tokens_filtered <- data_tokens %>%
-  filter(!word %in% stopwords("en"))%>%
-  filter(!grepl("^[0-9]+$", word))
-token_counts_filtered <- data_tokens_filtered %>%
-  count(word, sort = TRUE)
-most_common_tokens_without_stopwords <- head(token_counts_filtered, 10)
-most_common_tokens_without_stopwords
+token <- data_tokens[!data_tokens$token %in% stop_words, ]
+top_5_tokens <- head(token, 5)
+top_5_tokens
 ```
-
-These would be the words that are most mentioned while getting rid of any possible numbers that might pop up. Pre would probably be used to be attached to eclampsia, so that might be an issue since there is already an preeclampsia.
+These would be the words that are most mentioned while getting rid of any possible numbers that might pop up. While it does seem strange that 19 pops up, it can be considered part of covid 19.
 
 ## 2. Tokenize the abstracts into bigrams. Find the 10 most common bigrams and visualize them with ggplot2.
 
 ```{r}
 bigrams <- pubmed %>%
   unnest_tokens(bigram, abstract, token = "ngrams", n = 2)
-top_bigrams <- bigrams %>%
-  count(bigram, sort = TRUE) %>%
+bigram_counts <- bigrams %>%
+  count(bigram, sort = TRUE)
+top_10_bigrams <- bigram_counts %>%
   top_n(10, n)
-ggplot(top_bigrams, aes(n, reorder(bigram, n))) +
+top_10_bigrams
+ggplot(top_10_bigrams, aes(n, reorder(bigram, n))) +
   geom_col() +
   labs(x = "Frequency", y = "Bigram")
 ```
